@@ -64,11 +64,11 @@ Together, the platform provides **interactive querying, analysis, visualization,
 
 ### 2.1 ESG 報告爬蟲建置（Playwright + API） / ESG Report Crawlers
 
-使用 Playwright 擷取 2021–2022 年 HTML 表格，以及官方 TWSE API 擷取 2023–2024 年 ESG 指標資料。  
-負責欄位正規化、數值抽取、寬表/長表轉換與年份對齊，使資料能直接用於 RAG 與 ESG 儀表板。
+使用 Playwright 擷取 2021–2022 年 HTML 版本 ESG 報表，並透過官方 TWSE API 擷取 2023–2024 年資料。
+負責欄位正規化、數值抽取、寬表/長表轉換與跨年度欄位對齊，使資料可直接用於向量化、語意檢索與 ESG 儀表板顯示。
 
-Developed ESG report crawlers using Playwright for 2021–2022 HTML tables and TWSE official APIs for 2023–2024 data.  
-Handled field normalization, numeric extraction, long/wide formatting, and year alignment to enable smooth integration with the RAG system and ESG dashboard.
+Developed automated pipelines for collecting ESG report data using Playwright (2021–2022 HTML tables) and TWSE official APIs (2023–2024).
+Performed normalization, numeric extraction, long/wide formatting, and cross-year validation to support metadata-enriched semantic retrieval and dashboard integration.
 
 ---
 
@@ -76,19 +76,20 @@ Handled field normalization, numeric extraction, long/wide formatting, and year 
 
 Designed the complete RAG backend pipeline, including:  
 - **Query rewriting** to reformulate user queries into retrieval-friendly versions  
-- **Multi-query retrieval** to increase Top-K diversity  
+- **Multi-query retrieval** to increase semantic coverage
+- **Intent-guided filtering** that activates guided mode for ambiguous queries
 - **Metadata filtering** based on company, year, category, and source  
 - **Guided mode triggering (intent detection)**:  
   Automatically analyzes whether a user query is ambiguous and switches to guided mode when needed  
 - **Structured generation prompt** to enforce output formatting, citation rules, table rendering, and anti-hallucination logic  
-- **Mode-based behavior (All / Data / News)** for differentiated retrieval and generation flows  
+- **Three retrieval modes (All / Data / News)** supporting differentiated retrieval/generation flows and enabling multi-document synthesis across ESG metrics and classified news.
 
 ---
 
-### 2.3 向量資料庫建置（ChromaDB） / Vector Database (ChromaDB)
+### 2.3 向量資料庫建置（ChromaDB） / Vector Database Construction (ChromaDB)
 
-將 ESG 報告資料與新聞的情緒/主題分類結果整合進 ChromaDB，建立語意向量索引並加入 metadata（公司代碼、年份、類別、資料來源）。
-Built a ChromaDB vector store integrating ESG report content and classified news (sentiment/topic), enriched with metadata such as company code, year, category, and source type.
+將 ESG 報告與新聞情緒／主題分類整合為 metadata-enriched embeddings，寫入 ChromaDB，形成含公司代碼、年份、類別與來源的語意向量資料庫。  
+Built a metadata-enriched vector database integrating ESG report content and classified news (sentiment + topic labels), enriched with metadata such as company code, year, category, and source to support semantic retrieval.
 
 ---
 
@@ -99,7 +100,7 @@ Developed the structured ESG Data API endpoints:
 - `GET /fields` — numeric ESG fields for a given company/year  
 - `GET /search` — keyword-based ESG metric search with filters  
 
-Used by both the dashboard and the chatbot.
+used by both the dashboard and the RAG system, enabling hybrid deterministic lookup + LLM reasoning.
 
 ---
 
