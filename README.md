@@ -17,7 +17,7 @@
 - **ESG 報表資料（2021–2024）**  
 - **新聞語意分析：**  
   - 情緒分類 → 正面／中立／負面  
-  - 主題分類 → 一般新聞／科普文章／綠色服務  
+  - 主題分類 → 一般新聞／科普文章／綠色金融服務  
 - **公司歷年 ESG 評分與趨勢視覺化**  
 - **結構化 ESG 指標（ESG 數據儀表板）**  
 - **RAG（Retrieval-Augmented Generation）語意檢索**  
@@ -38,7 +38,7 @@ The system integrates multiple ESG-related sources:
 - **ESG sustainability reports (2021–2024)**  
 - **News semantic analysis:**  
   - Sentiment classification → positive / neutral / negative  
-  - Topic classification → general news / science articles / green services  
+  - Topic classification → general news / science articles / green financial services    
 - **Historical ESG score visualization**  
 - **Structured ESG metrics dashboard**  
 - **RAG-based semantic search**  
