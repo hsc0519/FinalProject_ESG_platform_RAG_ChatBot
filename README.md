@@ -100,7 +100,7 @@ Developed the structured ESG Data API endpoints:
 - `GET /fields` — numeric ESG fields for a given company/year  
 - `GET /search` — keyword-based ESG metric search with filters  
 
-used by both the dashboard and the RAG system, enabling hybrid deterministic lookup + LLM reasoning.
+Used by both the dashboard and the RAG system, enabling hybrid deterministic lookup + LLM reasoning.
 
 ---
 
