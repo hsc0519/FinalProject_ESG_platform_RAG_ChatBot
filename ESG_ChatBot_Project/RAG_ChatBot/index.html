@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <title>🌱 ESG 對話查詢機器人</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <style>
+    body { font-family:"Noto Sans TC",sans-serif; background:#f7f9fb; display:flex; justify-content:center; align-items:center; height:100vh; margin:0; }
+    .layout { display:flex; width:900px; height:620px; background:#fff; border-radius:16px; box-shadow:0 2px 12px rgba(0,0,0,.1); overflow:hidden; }
+    .sidebar { width:260px; background:#f1f3f5; border-right:1px solid #e6e6e6; display:flex; flex-direction:column; }
+    .sidebar h3 { margin:12px; font-size:1em; }
+    .sidebar .row { display:flex; gap:8px; align-items:center; padding:0 12px 8px; }
+    .sidebar button, .toolbar button, .input-area button { padding:6px 12px; border-radius:8px; border:1px solid #ddd; background:#fff; cursor:pointer; }
+    .sidebar button.newchat { background:#0078ff; color:#fff; border-color:#0078ff; }
+    .chat-list { flex:1; overflow-y:auto; padding:6px; }
+    .chat-item { padding:8px 10px; border-radius:8px; margin:6px; background:#fff; border:1px solid transparent; cursor:pointer; }
+    .chat-item.active { background:#0078ff; color:#fff; }
+    .chat-item .sub { display:block; font-size:.82em; opacity:.8; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .chat-container { flex:1; display:flex; flex-direction:column; }
+    .toolbar { display:flex; gap:8px; padding:10px; border-bottom:1px solid #eee; justify-content:center; background:#fafafa; position:relative; }
+    .toolbar button.active { background:#0078ff; color:#fff; border-color:#0078ff; }
+    .toolbar .right-tools { position:absolute; right:10px; top:8px; display:flex; gap:8px; }
+    .chat-box { flex:1; padding:15px; overflow-y:auto; }
+    .message { margin:10px 0; padding:10px 14px; border-radius:12px; max-width:80%; line-height:1.5; }
+    .user { background:#0078ff; color:white; align-self:flex-end; border-bottom-right-radius:2px; white-space: pre-wrap;}
+    .bot { background:#e5e7eb; color:#222; align-self:flex-start; border-bottom-left-radius:2px; white-space: normal; }
+    .bot h1,.bot h2,.bot h3,.bot h4 { margin:.4em 0 .25em; line-height:1.25; font-size:1.05em; font-weight:600;}
+    .bot p { margin:.35em 0;}
+    .bot ul,.bot ol { margin:.35em 0 .35em 1.2em; padding:0;}
+    .bot li { margin:.2em 0;}
+    .bot pre { margin:.35em 0; padding:.5em; background:#f5f7fa; border-radius:8px; overflow:auto;}
+    .source { font-size:0.85em; color:#666; margin-top:4px; }
+    .input-area { display:flex; padding:10px; border-top:1px solid #ddd; }
+    input { flex:1; padding:10px; border:1px solid #ccc; border-radius:8px; outline:none; }
+    button.send { background:#0078ff; color:white; border:none; border-radius:8px; padding:0 16px; margin-left:8px; cursor:pointer; }
+    button.send:hover { background:#0062d9; }
+
+    /* Modal（選取要總整的對話） */
+    .modal { position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.45); display:none; align-items:center; justify-content:center; z-index:9999; backdrop-filter:blur(2px); }
+    .modal .panel { width:520px; max-height:70vh; overflow:auto; background:#fff; border-radius:12px; padding:16px; box-shadow:0 10px 30px rgba(0,0,0,.2); }
+    .modal h4 { margin:0 0 8px; }
+    .modal .list { display:flex; flex-direction:column; gap:8px; margin:12px 0; padding:0 4px; }
+    .modal .list label { display:flex; align-items:center; gap:8px; justify-content:flex-start; font-size:14px; }
+    .modal .actions { display:flex; gap:8px; justify-content:flex-end; margin-top:12px; }
+    .modal .actions .busy { opacity:.6; pointer-events:none; }
+
+    /* Toast（懸浮提示，不干擾聊天區） */
+    .toast { position:fixed; top:16px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,.82); color:#fff; padding:10px 14px; border-radius:10px; font-size:14px; box-shadow:0 10px 30px rgba(0,0,0,.25); z-index:10050; display:none; align-items:center; gap:10px; }
+    .toast.show { display:flex; }
+    .spinner { width:16px; height:16px; border:2px solid rgba(255,255,255,.35); border-top-color:#fff; border-radius:50%; animation:spin 0.9s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg);} }
+
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <!-- 左側：對話列表 -->
+    <div class="sidebar">
+      <h3>對話列表</h3>
+      <div class="row">
+        <button class="newchat" onclick="newChat()">＋ 新對話</button>
+        <button onclick="deleteChat()">刪除</button>
+      </div>
+      <div id="chat-list" class="chat-list"></div>
+    </div>
+
+    <!-- 右側：聊天區 -->
+    <div class="chat-container">
+      <div class="toolbar">
+        <button id="btn-all"  class="active" onclick="setMode('all')">全部</button>
+        <button id="btn-esg"  onclick="setMode('esg')">數據（ESG）</button>
+        <button id="btn-news" onclick="setMode('news')">資訊（NEWS）</button>
+        <button id="btn-summary" onclick="openSummaryModal()">總整</button>
+
+        <!-- 只在「總整產生的對話」顯示 -->
+        <div class="right-tools">
+          <button id="btn-download" onclick="downloadSummaryContentPDF()" style="display:none">下載 PDF</button>
+        </div>
+      </div>
+
+      <div class="chat-box" id="chat-box">
+        <div class="message bot">請輸入問題，上方可切換查詢類型（全部 / 數據 / 資訊）。</div>
+      </div>
+
+      <div class="input-area">
+        <input id="user-input" type="text" placeholder="輸入您的問題..." />
+        <button class="send" id="send-btn" onclick="sendMessage()">送出</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 總整 Modal（勾選要總結的對話） -->
+  <div id="summary-modal" class="modal">
+    <div class="panel">
+      <h4>選擇要總結的對話</h4>
+      <div id="summary-list" class="list"></div>
+      <div class="actions">
+        <button id="btn-cancel-sum" onclick="closeSummaryModal()">取消</button>
+        <button id="btn-do-sum" onclick="summarizeSelected()">生成總結</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="app-toast" class="toast"><div class="spinner"></div><span id="toast-text">處理中…</span></div>
+
+<script>
+  // ===== API =====
+  const API_URL   = "http://127.0.0.1:8000/query";
+  const TITLE_API = "http://127.0.0.1:8000/title";
+  const SUM_API   = "http://127.0.0.1:8000/summarize";
+
+  // ===== 狀態 =====
+  const chatBox   = document.getElementById("chat-box");
+  const userInput = document.getElementById("user-input");
+  const sendBtn   = document.getElementById("send-btn");
+  const dlBtn     = document.getElementById("btn-download");
+  let mode = "all";
+
+  // 改這行：關閉分頁就清空 → 使用 sessionStorage；若要永久保存改回 localStorage
+  let storage = window.localStorage;
+
+  // chats: { id: {title, history: [[user,bot,sources], ...], isSummary?: true } }
+  let chats = JSON.parse(storage.getItem("esg_chats") || '{"chats":{}}').chats;
+  let currentChatId = null;
+  let isSummarizing = false; // 防連點
+
+  // ===== 工具 =====
+  function uuid(){ return Math.random().toString(36).slice(2) + Date.now().toString(36); }
+  function saveChats(){ storage.setItem("esg_chats", JSON.stringify({chats})); }
+  function normalizeMd(md){ return (md || "").replace(/\r\n/g,"\n").replace(/\n{3,}/g,"\n\n").trim(); }
+  function fmtNow(){
+    const d = new Date();
+    const mm = String(d.getMonth()+1).padStart(2,"0");
+    const dd = String(d.getDate()).padStart(2,"0");
+    const HH = String(d.getHours()).padStart(2,"0");
+    const MM = String(d.getMinutes()).padStart(2,"0");
+    return `${d.getFullYear()}/${mm}/${dd} ${HH}:${MM}`;
+  }
+
+  // Toast
+  function showToast(text, withSpinner=true){
+    const t = document.getElementById("app-toast");
+    const s = t.querySelector(".spinner");
+    document.getElementById("toast-text").textContent = text || "";
+    s.style.display = withSpinner ? "inline-block" : "none";
+    t.classList.add("show");
+  }
+  function hideToast(){
+    document.getElementById("app-toast").classList.remove("show");
+  }
+
+  function refreshChatList(){
+    const list = document.getElementById("chat-list");
+    list.innerHTML = "";
+    Object.entries(chats).forEach(([id,chat])=>{
+      const item = document.createElement("div");
+      item.className = "chat-item" + (id===currentChatId ? " active": "");
+      item.onclick = () => switchChat(id);
+      const title = document.createElement("div");
+      title.textContent = chat.title || "新對話";
+      const sub = document.createElement("span");
+      sub.className = "sub";
+      const firstU = chat.history?.[0]?.[0] || "";
+      sub.textContent = firstU ? ("「"+firstU.slice(0,18)+"」") : (chat.isSummary ? "（總整）" : "");
+      item.appendChild(title);
+      if (sub.textContent) item.appendChild(sub);
+      list.appendChild(item);
+    });
+  }
+
+  function newChat(){
+    const id = uuid();
+    chats[id] = { title:"新對話", history:[] };
+    currentChatId = id;
+    saveChats();
+    refreshChatList();
+    renderHistory();
+    updateDownloadButton();
+  }
+
+  function deleteChat(){
+    if (!currentChatId) return;
+    if (!confirm("確定刪除此對話？")) return;
+    delete chats[currentChatId];
+    const keys = Object.keys(chats);
+    currentChatId = keys[0] || null;
+    saveChats();
+    refreshChatList();
+    renderHistory();
+    updateDownloadButton();
+  }
+
+  function switchChat(id){
+    currentChatId = id;
+    refreshChatList();
+    renderHistory();
+    updateDownloadButton();
+  }
+
+  function renderHistory(){
+    chatBox.innerHTML = "";
+    const hist = chats[currentChatId]?.history || [];
+    if (hist.length === 0) {
+      appendMessage("請輸入問題，上方可切換查詢類型（全部 / 數據 / 資訊）。","bot");
+      return;
+    }
+    hist.forEach(([u,a,sources])=>{
+      appendMessage(u,"user");
+      appendMessage(a,"bot", sources);
+    });
+    chatBox.scrollTop = chatBox.scrollHeight;
+  }
+
+  function appendMessage(text, sender, sources = []){
+    const msg = document.createElement("div");
+    msg.classList.add("message", sender);
+
+    if (sender === "bot" && window.marked && window.DOMPurify) {
+      const clean = normalizeMd(text);
+      const html = marked.parse(clean, { mangle:false, headerIds:false });
+      msg.innerHTML = DOMPurify.sanitize(html);
+    } else {
+      msg.textContent = text;
+    }
+
+    if (sender === "bot" && Array.isArray(sources) && sources.length) {
+      const src = document.createElement("div");
+      src.className = "source";
+      src.textContent = "來源：" + sources.join("、");
+      msg.appendChild(src);
+    }
+
+    chatBox.appendChild(msg);
+    chatBox.scrollTop = chatBox.scrollHeight;
+  }
+
+  function setMode(m){
+    mode = m;
+    document.getElementById("btn-all").classList.toggle("active", m==="all");
+    document.getElementById("btn-esg").classList.toggle("active", m==="esg");
+    document.getElementById("btn-news").classList.toggle("active", m==="news");
+    appendMessage(`已切換模式：${m==="esg"?"數據（ESG）":m==="news"?"資訊（NEWS）":"全部"}`,"bot");
+  }
+
+  async function ensureChatTitle(chatId, firstUserMsg){
+    if (!chats[chatId]) return;
+    if (chats[chatId].title && chats[chatId].title !== "新對話") return;
+    try{
+      const res = await fetch(TITLE_API, {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ first_user: firstUserMsg })
+      });
+      const data = await res.json();
+      const title = (data.title || firstUserMsg.slice(0,14)).trim() || "新對話";
+      chats[chatId].title = title;
+      saveChats(); refreshChatList();
+    }catch(e){}
+  }
+
+  async function sendMessage(){
+    const q = userInput.value.trim();
+    if (!q || !currentChatId) return;
+
+    appendMessage(q,"user");
+    userInput.value = "";
+    sendBtn.disabled = true; sendBtn.textContent = "思考中…";
+
+    const hist = chats[currentChatId]?.history || [];
+
+    try {
+      const res = await fetch(API_URL, {
+        method:"POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ question: q, history: hist.map(([u,a])=>[u,a]), mode })
+      });
+      if (!res.ok) {
+        const t = await res.text();
+        throw new Error(`HTTP ${res.status}: ${t.slice(0,200)}`);
+      }
+      const data = await res.json();
+      const answer  = data.answer || "(無回覆)";
+      const sources = Array.isArray(data.sources) ? data.sources : [];
+
+      appendMessage(answer, "bot", sources);
+
+      hist.push([q, answer, sources]);
+      chats[currentChatId].history = hist;
+
+      if (hist.length === 1) {
+        await ensureChatTitle(currentChatId, q);
+      }
+
+      saveChats(); refreshChatList();
+    } catch (err) {
+      appendMessage("❌ 錯誤：" + err.message, "bot");
+    } finally {
+      sendBtn.disabled = false; sendBtn.textContent = "送出";
+    }
+  }
+
+  userInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+
+  // ===== 總整 Modal =====
+  function openSummaryModal(){
+    if (isSummarizing) return;
+    const modal = document.getElementById("summary-modal");
+    const list  = document.getElementById("summary-list");
+    list.innerHTML = "";
+    Object.entries(chats).forEach(([id, chat])=>{
+      const label = document.createElement("label");
+      const cb = document.createElement("input");
+      cb.type = "checkbox"; cb.value = id;
+      const span = document.createElement("span");
+      span.textContent = chat.title || "新對話";
+      label.appendChild(cb);
+      label.appendChild(span);
+      list.appendChild(label);
+    });
+    modal.style.display = "flex";
+  }
+  function closeSummaryModal(){
+    document.getElementById("summary-modal").style.display = "none";
+    // 解除忙碌態
+    document.getElementById("btn-do-sum").classList.remove("busy");
+    document.getElementById("btn-cancel-sum").classList.remove("busy");
+  }
+
+  // ===== 產生總結：不干擾聊天，浮動提示，完成後建立新對話 =====
+  async function summarizeSelected(){
+    if (isSummarizing) return;
+    const checked = Array.from(document.querySelectorAll("#summary-list input[type=checkbox]:checked")).map(cb => cb.value);
+    if (checked.length === 0) { alert("請至少勾選一個對話"); return; }
+
+    // 防連點 + Modal 按鈕變忙碌
+    isSummarizing = true;
+    document.getElementById("btn-do-sum").classList.add("busy");
+    document.getElementById("btn-cancel-sum").classList.add("busy");
+
+    // 懸浮提示：正在總結…
+    showToast("正在總結，請稍候…", true);
+
+    const items = checked.map(id => ({
+      title:   chats[id]?.title   || "新對話",
+      history: (chats[id]?.history || []).map(([u,a]) => [u,a])
+    }));
+
+    try{
+      const res = await fetch(SUM_API, {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ items, mode })
+      });
+      if (!res.ok) {
+        const t = await res.text();
+        throw new Error(`HTTP ${res.status}: ${t.slice(0,200)}`);
+      }
+
+      const data = await res.json();
+      const summaryMd   = data.summary || "(無摘要)";
+
+      // 關掉 Modal
+      closeSummaryModal();
+
+      // 建立新對話（左側清單）
+      const newId = uuid();
+      const title = `總整 - ${fmtNow()}`;
+      chats[newId] = {
+        title,
+        history: [[ "", summaryMd, [] ]],   // 第一則訊息只有 bot（前端渲染時會做 user/bot一組，因此 user留空）
+        isSummary: true
+      };
+      saveChats();
+
+      // 切換到新對話並顯示
+      currentChatId = newId;
+      refreshChatList();
+      renderHistory();
+      updateDownloadButton();
+
+      // 短提示：完成
+      document.getElementById("toast-text").textContent = "✅ 總結完成";
+      document.querySelector("#app-toast .spinner").style.display = "none";
+      setTimeout(hideToast, 1200);
+
+    }catch(err){
+      document.getElementById("toast-text").textContent = "❌ 總結失敗：" + err.message;
+      document.querySelector("#app-toast .spinner").style.display = "none";
+      // 3 秒後自動關閉
+      setTimeout(hideToast, 3000);
+    } finally {
+      isSummarizing = false;
+      document.getElementById("btn-do-sum").classList.remove("busy");
+      document.getElementById("btn-cancel-sum").classList.remove("busy");
+    }
+  }
+
+  // 只在總整聊天顯示「下載 PDF」按鈕
+  function updateDownloadButton(){
+    const show = !!(currentChatId && chats[currentChatId]?.isSummary);
+    dlBtn.style.display = show ? "inline-block" : "none";
+  }
+
+  // 下載目前對話（chat-box）為 PDF：html2canvas → jsPDF（中文不亂碼）
+  // 取得目前總整聊天室的 Markdown（可多段）
+function getCurrentSummaryMarkdown(){
+  const chat = chats[currentChatId];
+  if (!chat || !chat.isSummary) return null;
+  // 將該總整對話中所有 bot 訊息串在一起（通常只有一段）
+  const parts = (chat.history || [])
+    .map(([u,a]) => (a || "").trim())
+    .filter(Boolean);
+  return parts.join("\n\n---\n\n");
+}
+
+// 下載「內容本身」為 PDF：把 Markdown 渲染到隱藏區塊，再用 html2canvas 分頁輸出
+async function downloadSummaryContentPDF(){
+  const md = getCurrentSummaryMarkdown();
+  if (!md){
+    alert("找不到總整內容。請確認你目前所在的是「總整」對話。");
+    return;
+  }
+
+  // 1) 建立隱藏的乾淨內容區塊（不帶聊天樣式）
+  const tmp = document.createElement("div");
+  tmp.id = "print-only-summary";
+  Object.assign(tmp.style, {
+    position: "fixed", left: "-99999px", top: "0",
+    width: "794px",      // 近似 A4 寬度（pt→px 的簡化對應）
+    padding: "24px 28px",
+    background: "#ffffff",
+    color: "#111",
+    lineHeight: "1.6",
+    fontFamily: '"Noto Sans TC", system-ui, -apple-system, Segoe UI, Roboto, Arial, "PingFang TC", "Microsoft JhengHei", sans-serif',
+    fontSize: "14px"
+  });
+
+  // 簡單的「內容版」樣式
+  const style = document.createElement("style");
+  style.textContent = `
+    #print-only-summary h1{font-size:20px;margin:.2em 0 .4em;}
+    #print-only-summary h2{font-size:18px;margin:.2em 0 .4em;}
+    #print-only-summary h3{font-size:16px;margin:.2em 0 .3em;}
+    #print-only-summary p{margin:.4em 0;}
+    #print-only-summary ul{margin:.35em 0 .35em 1.2em; padding:0;}
+    #print-only-summary li{margin:.2em 0;}
+    #print-only-summary code, #print-only-summary pre{
+      background:#f6f8fa; border-radius:6px; padding:2px 4px;
+    }
+    #print-only-summary pre{
+      padding:10px; overflow:auto;
+    }
+    #print-only-summary hr{border:none; border-top:1px solid #e5e7eb; margin:.8em 0;}
+  `;
+  document.head.appendChild(style);
+
+  // 渲染 Markdown → 乾淨 HTML
+  const html = DOMPurify.sanitize(marked.parse(md, {mangle:false, headerIds:false}));
+  tmp.innerHTML = html;
+  document.body.appendChild(tmp);
+
+  try{
+    // 2) 轉成大圖（保證中文字不亂碼）
+    const canvas = await html2canvas(tmp, {
+      scale: window.devicePixelRatio > 1 ? window.devicePixelRatio : 2,
+      useCORS: true,
+      backgroundColor: "#ffffff"
+    });
+
+    // 3) 分頁輸出到 A4 PDF（直式）
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ unit: "pt", format: "a4" });
+
+    const pageWidth  = pdf.internal.pageSize.getWidth();   // 595pt
+    const pageHeight = pdf.internal.pageSize.getHeight();  // 842pt
+
+    const marginX = 40, marginY = 40;
+    const imgWidth = pageWidth - marginX*2;
+    const scale = imgWidth / canvas.width;
+    const imgHeight = canvas.height * scale;
+
+    // 用切片方式分頁
+    const pageCanvas = document.createElement("canvas");
+    const ctx = pageCanvas.getContext("2d");
+
+    let printHeightLeft = imgHeight;
+    let srcY = 0;
+    let pageIndex = 0;
+
+    while (printHeightLeft > 0) {
+      const pagePrintableHeight = pageHeight - marginY*2;          // 單頁可用高度
+      const sliceHeightOnImage  = Math.min(printHeightLeft, pagePrintableHeight); // 以 PDF 高度對應的顯示高度
+      const sliceHeightOnCanvas = Math.floor(sliceHeightOnImage / scale);         // 換回原始畫布上的高度
+
+      pageCanvas.width  = canvas.width;
+      pageCanvas.height = sliceHeightOnCanvas;
+
+      ctx.clearRect(0,0,pageCanvas.width,pageCanvas.height);
+      ctx.drawImage(
+        canvas,
+        0, srcY, canvas.width, sliceHeightOnCanvas,    // Source
+        0, 0, pageCanvas.width, pageCanvas.height      // Dest
+      );
+
+      const pageImg = pageCanvas.toDataURL("image/png");
+      if (pageIndex > 0) pdf.addPage();
+      pdf.addImage(pageImg, "PNG", marginX, marginY, imgWidth, sliceHeightOnImage);
+
+      srcY += sliceHeightOnCanvas;
+      printHeightLeft -= sliceHeightOnImage;
+      pageIndex++;
+    }
+
+    const now = new Date();
+    const fname = `ESG_總整內容_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,"0")}${String(now.getDate()).padStart(2,"0")}.pdf`;
+    pdf.save(fname);
+  } finally {
+    // 清理暫存 DOM / 樣式
+    tmp.remove();
+    style.remove();
+  }
+}
+
+  // ===== 初始化 =====
+  (function init(){
+    if (Object.keys(chats).length === 0) {
+      newChat();
+    } else {
+      currentChatId = Object.keys(chats)[0];
+      refreshChatList();
+      renderHistory();
+      updateDownloadButton();
+    }
+  })();
+</script>
+</body>
+</html>

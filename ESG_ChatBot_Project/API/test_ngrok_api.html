@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <title>🌐 ESG API 外網測試工具</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      padding: 20px;
+      line-height: 1.6;
+      background: #fafafa;
+    }
+    input, button {
+      padding: 8px;
+      font-size: 14px;
+      margin-right: 8px;
+    }
+    button {
+      cursor: pointer;
+    }
+    #log {
+      margin-top: 16px;
+      white-space: pre-wrap;
+      background: #f5f5f5;
+      padding: 12px;
+      border-radius: 6px;
+      border: 1px solid #ddd;
+      font-family: monospace;
+      max-height: 400px;
+      overflow: auto;
+    }
+    table {
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 6px 10px;
+      text-align: left;
+    }
+    th {
+      background-color: #eee;
+    }
+  </style>
+</head>
+<body>
+  <h2>🔍 ESG API 外網測試工具</h2>
+  <p>
+    ngrok 網址：<input id="base" size="55" placeholder="https://xxxx.ngrok-free.app" />
+  </p>
+  <p>
+    查詢公司名稱：<input id="query" placeholder="台積電" />
+    <button onclick="testAPI()">測試連線</button>
+  </p>
+
+  <div id="log">等待測試中...</div>
+  <div id="result"></div>
+
+  <script>
+  async function testAPI() {
+    const baseInput = document.getElementById('base');
+    const base = baseInput.value.trim();
+    const q = document.getElementById('query').value.trim() || "台積電";
+    const log = document.getElementById('log');
+    const result = document.getElementById('result');
+    log.textContent = "";
+    result.innerHTML = "";
+
+    // 🧩 驗證輸入網址
+    if (!/^https:\/\//i.test(base)) {
+      const suggested = "https://<你目前活著的 ngrok 網址>.ngrok-free.app";
+      baseInput.value = suggested;
+      log.textContent = "⚠️ 請輸入完整的 https ngrok 網址，例如：\n" + suggested;
+      return;
+    }
+
+    const url = `${base}/search?name=${encodeURIComponent(q)}`;
+    log.textContent += `📡 發送請求中...\n${url}\n\n`;
+
+    try {
+      const res = await fetch(url, {
+        method: "GET",
+        mode: "cors",
+        cache: "no-store",
+        headers: {
+          "ngrok-skip-browser-warning": "1",
+          "Accept": "application/json"
+        }
+      });
+
+      const ct = res.headers.get("content-type") || "";
+      const text = await res.text();
+
+      log.textContent += `HTTP 狀態碼：${res.status}\nContent-Type：${ct}\n\n`;
+
+      // ⛔ 錯誤或非 JSON
+      if (!res.ok) {
+        log.textContent += `❌ 錯誤回應：\n${text.slice(0, 500)}\n`;
+        return;
+      }
+      if (!ct.includes("application/json")) {
+        log.textContent += `⚠️ 非 JSON 回應，可能是 ngrok 警示頁：\n${text.slice(0, 500)}\n`;
+        return;
+      }
+
+      // ✅ 成功解析 JSON
+      const data = JSON.parse(text);
+      log.textContent += "✅ 成功取得 JSON 回應\n";
+
+      if (data.items && data.items.length ) {
+        let html = "<table><thead><tr><th>公司代碼</th><th>公司名稱</th><th>年度</th><th>分類</th><th>項目</th><th>數值</th></tr></thead><tbody>";
+        for (const item of data.items) {
+          html += `<tr>
+            <td>${item.company_code || ""}</td>
+            <td>${item.company_name || ""}</td>
+            <td>${item.year || ""}</td>
+            <td>${item.category || ""}</td>
+            <td>${item.field || ""}</td>
+            <td>${item.value || ""}</td>
+          </tr>`;
+        }
+        html += "</tbody></table>";
+        result.innerHTML = html;
+      } else {
+        result.innerHTML = "<p>⚠️ 沒有查到資料。</p>";
+      }
+
+    } catch (err) {
+      log.textContent += `❌ Failed to fetch：${err.message || err}\n`;
+    }
+  }
+  </script>
+</body>
+</html>
