@@ -28,7 +28,7 @@ app.add_middleware(
 )
 
 # === ① ESG Lookup（第一段） ===
-DATA_PATH = Path(__file__).parent / "all number data cindy.json"
+DATA_PATH = Path(__file__).parent / "all number data.json"
 with open(DATA_PATH, encoding="utf-8") as f:
     data = json.load(f)
 
@@ -240,3 +240,4 @@ if __name__ == "__main__":
     import uvicorn
     # 建議用這個指令在外部啟動也行： uvicorn merged_api:app --reload --port 8000
     uvicorn.run("api_server:app", host="127.0.0.1", port=8000, reload=True, http="h11")
+
