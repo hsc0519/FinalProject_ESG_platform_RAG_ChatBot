@@ -47,6 +47,16 @@ Together, the platform provides **interactive querying, analysis, visualization,
 
 ## 我負責的部分（後端核心架構 & ESG 資料整合） / My Contributions (Backend Core Architecture & ESG Data Integration)
 
+The diagram below illustrates the complete system architecture. My primary contributions are highlighted in **Yellow**, **Green (Bottom Right)**, and **Blue**, covering the core RAG engine, data processing pipeline, and API integration.
+
+![Technical Implementation](./Technical%20Implementation.png)
+
+> **Legend of Responsibility:**
+> * 🟨 **Yellow Area:** Core RAG Chatbot Construction (The "Brain")
+> * 🟩 **Green Area (Bottom Right):** Sustainability Report Data Pipeline (The "Knowledge Base")
+> * 🟦 **Blue Area:** API Architecture & Design (The "Connectors")
+
+---
 ### 2.1 ESG 報告爬蟲建置（Playwright + API） / ESG Report Crawlers
 
 Developed automated pipelines for collecting ESG report data using Playwright (2021–2022 HTML tables) and TWSE official APIs (2023–2024).
