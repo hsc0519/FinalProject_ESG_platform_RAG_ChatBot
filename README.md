@@ -1,5 +1,12 @@
 # ESG RAG ChatBot Project
+### 🎥 System Demo
 
+[![Watch the Demo Video](https://img.youtube.com/vi/XSENbbyN3uA/maxresdefault.jpg)](https://youtu.be/XSENbbyN3uA?t=4m34s)
+
+> **Note:** The video narration is in Traditional Chinese. To save your time, the link above starts directly at the **Live Demo**. 
+> You can also explore specific sections:
+> * [**03:28** - Technical Implementation & Workflow](https://youtu.be/XSENbbyN3uA?t=3m28s) (Architecture explanation)
+> * [**04:34** - Live System Demo](https://youtu.be/XSENbbyN3uA?t=4m34s) (Chatbot interaction showcase)
 ---
 
 # 1. 專題背景與介紹 / Project Background
