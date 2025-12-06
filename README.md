@@ -196,7 +196,9 @@ This merged version loads a compact JSON dataset instead of full CSV files.
 
 # 4. My RAG Chatbot Data Flow Architecture
 
-![System Architecture](./Chatbot DFD.jpg)
+The following diagram illustrates the data flow within the RAG Chatbot system, covering data ingestion, vectorization, retrieval, and response generation.
+
+![System Architecture](./Chatbot_DFD.jpg)
 
 ---
 
