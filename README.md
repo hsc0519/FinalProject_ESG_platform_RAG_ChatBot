@@ -196,7 +196,7 @@ This merged version loads a compact JSON dataset instead of full CSV files.
 
 # 4. My RAG Chatbot Data Flow Architecture
 
-![System Architecture](./Chatbot DFD.png)
+![System Architecture](./Chatbot DFD.jpg)
 
 ---
 
